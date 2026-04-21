@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, hash_password, verify_and_update_password
 from app.db.database import get_database
 from app.schemas.auth import AuthTokenResponse, LoginRequest, RegisterRequest, UserProfile
 
@@ -48,9 +48,19 @@ async def login(payload: LoginRequest) -> AuthTokenResponse:
     db = get_database()
     user = await db.users.find_one({"email": payload.email.lower()})
 
-    if user is None or not verify_password(payload.password, user["password_hash"]):
+    if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+
+    is_valid, updated_hash = verify_and_update_password(payload.password, user["password_hash"])
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+
+    if updated_hash is not None and updated_hash != user["password_hash"]:
+        await db.users.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"password_hash": updated_hash, "updated_at": datetime.now(timezone.utc)}},
+        )
+        user["password_hash"] = updated_hash
 
     access_token = create_access_token(str(user["_id"]))
     return AuthTokenResponse(access_token=access_token, user=_user_to_profile(user))
-

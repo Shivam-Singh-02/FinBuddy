@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from functools import lru_cache
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -11,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _split_csv(value: Optional[str]) -> list[str]:
+def _split_csv(value: str | None) -> list[str]:
     if not value:
         return ["http://localhost:5173"]
 

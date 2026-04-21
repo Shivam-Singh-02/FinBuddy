@@ -1,8 +1,5 @@
-from __future__ import annotations
-
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional
 from typing import Literal
 
 from bson import ObjectId
@@ -65,15 +62,15 @@ def _group_by_id(entries: list[dict], key_name: str) -> dict[str, list[dict]]:
     return grouped
 
 
-def _latest_entry(entries: list[dict]) -> Optional[dict]:
+def _latest_entry(entries: list[dict]) -> dict | None:
     if not entries:
         return None
 
     return max(entries, key=lambda item: (item["as_of_date"], item["created_at"]))
 
 
-def _latest_entry_before(entries: list[dict], boundary: datetime) -> Optional[dict]:
-    matched: Optional[dict] = None
+def _latest_entry_before(entries: list[dict], boundary: datetime) -> dict | None:
+    matched: dict | None = None
 
     for entry in entries:
         if entry["as_of_date"] <= boundary:

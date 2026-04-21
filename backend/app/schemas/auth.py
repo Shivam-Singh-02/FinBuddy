@@ -1,16 +1,15 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserProfile(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     full_name: str
     email: EmailStr
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class RegisterRequest(BaseModel):

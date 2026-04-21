@@ -1,6 +1,6 @@
 # FinBuddy
 
-FinBuddy is a personal finance tracker with a React frontend, a FastAPI backend, and MongoDB for persistence. The first version supports:
+FinBuddy is a personal finance tracker with a React frontend, a FastAPI backend, and MongoDB for persistence. The current backend targets Python 3.13.13, and the first version supports:
 
 - user authentication
 - bank account tracking with dated balance snapshots
@@ -10,7 +10,7 @@ FinBuddy is a personal finance tracker with a React frontend, a FastAPI backend,
 ## Stack
 
 - Frontend: React + TypeScript + Vite + Recharts
-- Backend: FastAPI + Motor + JWT auth
+- Backend: FastAPI + PyMongo Async + PyJWT + pwdlib
 - Database: MongoDB Atlas
 
 ## Project structure
@@ -32,7 +32,7 @@ FinBuddy is a personal finance tracker with a React frontend, a FastAPI backend,
 
 ```bash
 cd backend
-python3 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
