@@ -58,6 +58,8 @@ export interface DashboardSummary {
   cash_total: number;
   investment_current_total: number;
   investment_principal_total: number;
+  vlti_current_total: number;
+  vlti_principal_total: number;
   net_worth: number;
   gain_loss: number;
   allocation: Array<{ label: string; value: number }>;
@@ -70,6 +72,8 @@ export interface TrendPoint {
   cash_total: number;
   investment_current_total: number;
   investment_principal_total: number;
+  vlti_current_total: number;
+  vlti_principal_total: number;
   net_worth: number;
 }
 

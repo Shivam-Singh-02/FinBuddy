@@ -73,7 +73,12 @@ def _latest_entry_before(entries: list[dict], boundary: datetime) -> dict | None
     matched: dict | None = None
 
     for entry in entries:
-        if entry["as_of_date"] <= boundary:
+        entry_date = entry["as_of_date"]
+        # Make naive datetime aware if needed
+        if entry_date.tzinfo is None:
+            entry_date = entry_date.replace(tzinfo=timezone.utc)
+        
+        if entry_date <= boundary:
             matched = entry
         else:
             break
@@ -91,6 +96,12 @@ async def build_dashboard_data(
 
     account_entries = await db.account_entries.find({"user_id": user_oid}).to_list(length=None)
     investment_entries = await db.investment_entries.find({"user_id": user_oid}).to_list(length=None)
+    investments = await db.investments.find({"user_id": user_oid}).to_list(length=None)
+
+    # Create a mapping of investment_id to category
+    investment_categories = {str(inv["_id"]): inv.get("category", "") for inv in investments}
+    
+    vlti_categories = {"PF", "NPS"}
 
     accounts_by_id = _group_by_id(account_entries, "account_id")
     investments_by_id = _group_by_id(investment_entries, "investment_id")
@@ -102,15 +113,34 @@ async def build_dashboard_data(
         sum(entry["balance"] for entry in latest_account_entries if entry is not None),
         2,
     )
+    
+    # Separate regular and VLTI investments
+    regular_investment_entries = [
+        entry for entry in latest_investment_entries 
+        if entry and investment_categories.get(str(entry.get("investment_id")), "") not in vlti_categories
+    ]
+    vlti_investment_entries = [
+        entry for entry in latest_investment_entries 
+        if entry and investment_categories.get(str(entry.get("investment_id")), "") in vlti_categories
+    ]
+    
     investment_current_total = round(
-        sum(entry["current_value"] for entry in latest_investment_entries if entry is not None),
+        sum(entry["current_value"] for entry in regular_investment_entries if entry is not None),
         2,
     )
     investment_principal_total = round(
-        sum(entry["invested_amount"] for entry in latest_investment_entries if entry is not None),
+        sum(entry["invested_amount"] for entry in regular_investment_entries if entry is not None),
         2,
     )
-    net_worth = round(cash_total + investment_current_total, 2)
+    vlti_current_total = round(
+        sum(entry["current_value"] for entry in vlti_investment_entries if entry is not None),
+        2,
+    )
+    vlti_principal_total = round(
+        sum(entry["invested_amount"] for entry in vlti_investment_entries if entry is not None),
+        2,
+    )
+    net_worth = round(cash_total + investment_current_total + vlti_current_total, 2)
 
     points = []
     for bucket_start, bucket_end, label in _build_buckets(period, bucket_count):
@@ -126,12 +156,26 @@ async def build_dashboard_data(
             ),
             2,
         )
+        
+        # Get all investment entries for this bucket
+        all_bucket_investment_entries = [
+            _latest_entry_before(entries, boundary) for entries in investments_by_id.values()
+        ]
+        
+        # Separate regular and VLTI investments
+        bucket_regular_investment_entries = [
+            entry for entry in all_bucket_investment_entries 
+            if entry and investment_categories.get(str(entry.get("investment_id")), "") not in vlti_categories
+        ]
+        bucket_vlti_investment_entries = [
+            entry for entry in all_bucket_investment_entries 
+            if entry and investment_categories.get(str(entry.get("investment_id")), "") in vlti_categories
+        ]
+        
         bucket_investment_current_total = round(
             sum(
                 latest["current_value"]
-                for latest in (
-                    _latest_entry_before(entries, boundary) for entries in investments_by_id.values()
-                )
+                for latest in bucket_regular_investment_entries
                 if latest is not None
             ),
             2,
@@ -139,9 +183,23 @@ async def build_dashboard_data(
         bucket_investment_principal_total = round(
             sum(
                 latest["invested_amount"]
-                for latest in (
-                    _latest_entry_before(entries, boundary) for entries in investments_by_id.values()
-                )
+                for latest in bucket_regular_investment_entries
+                if latest is not None
+            ),
+            2,
+        )
+        bucket_vlti_current_total = round(
+            sum(
+                latest["current_value"]
+                for latest in bucket_vlti_investment_entries
+                if latest is not None
+            ),
+            2,
+        )
+        bucket_vlti_principal_total = round(
+            sum(
+                latest["invested_amount"]
+                for latest in bucket_vlti_investment_entries
                 if latest is not None
             ),
             2,
@@ -155,7 +213,9 @@ async def build_dashboard_data(
                 "cash_total": bucket_cash_total,
                 "investment_current_total": bucket_investment_current_total,
                 "investment_principal_total": bucket_investment_principal_total,
-                "net_worth": round(bucket_cash_total + bucket_investment_current_total, 2),
+                "vlti_current_total": bucket_vlti_current_total,
+                "vlti_principal_total": bucket_vlti_principal_total,
+                "net_worth": round(bucket_cash_total + bucket_investment_current_total + bucket_vlti_current_total, 2),
             }
         )
 
@@ -164,11 +224,14 @@ async def build_dashboard_data(
             "cash_total": cash_total,
             "investment_current_total": investment_current_total,
             "investment_principal_total": investment_principal_total,
+            "vlti_current_total": vlti_current_total,
+            "vlti_principal_total": vlti_principal_total,
             "net_worth": net_worth,
             "gain_loss": round(investment_current_total - investment_principal_total, 2),
             "allocation": [
                 {"label": "Bank Accounts", "value": cash_total},
                 {"label": "Investments", "value": investment_current_total},
+                {"label": "VLTI", "value": vlti_current_total},
             ],
         },
         "trend": {"period": period, "points": points},

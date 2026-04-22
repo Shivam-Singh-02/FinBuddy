@@ -4,7 +4,7 @@ import { formatCurrency } from "../utils/format";
 interface SummaryCardProps {
   label: string;
   value: number;
-  accent: "teal" | "amber" | "slate";
+  accent: "teal" | "amber" | "slate" | "green" | "red";
   subtitle: string;
 }
 

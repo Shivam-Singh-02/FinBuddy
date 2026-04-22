@@ -177,9 +177,15 @@ export function DashboardPage() {
               subtitle={`${investments.length} investment buckets in motion.`}
             />
             <SummaryCard
+              label="VLTI Value"
+              value={summary.vlti_current_total}
+              accent="slate"
+              subtitle="Very Long Term Investments (PF, NPS)."
+            />
+            <SummaryCard
               label="Portfolio Gain / Loss"
               value={summary.gain_loss}
-              accent="slate"
+              accent={summary.gain_loss >= 0 ? "green" : "red"}
               subtitle={`Against principal of ${formatCurrency(summary.investment_principal_total)}.`}
             />
           </section>

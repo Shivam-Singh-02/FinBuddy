@@ -15,6 +15,16 @@ interface InvestmentSectionProps {
   onAddEntry: (investmentId: string, payload: AddInvestmentEntryPayload) => Promise<void>;
 }
 
+const INVESTMENT_CATEGORIES = [
+  "Mutual Fund",
+  "Fixed Deposit",
+  "Stock",
+  "Digital Gold",
+  "Bonds",
+  "PF",
+  "NPS",
+] as const;
+
 const initialInvestmentForm = {
   name: "",
   category: "Mutual Fund",
@@ -84,15 +94,20 @@ export function InvestmentSection({
           <input
             value={form.name}
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            placeholder="Investment name"
+            placeholder="Platform"
             required
           />
-          <input
+          <select
             value={form.category}
             onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-            placeholder="Category"
             required
-          />
+          >
+            {INVESTMENT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
           <input
             type="number"
             min="0"
@@ -160,7 +175,11 @@ export function InvestmentSection({
                   <span>Principal</span>
                   <strong>{formatCurrency(investment.latest_invested_amount)}</strong>
                 </div>
-                <div className="metric-chip">
+                <div className={`metric-chip ${
+                  ((investment.latest_current_value ?? 0) - (investment.latest_invested_amount ?? 0)) >= 0
+                    ? "metric-chip-gain"
+                    : "metric-chip-loss"
+                }`}>
                   <span>Gain / Loss</span>
                   <strong>
                     {formatCurrency(

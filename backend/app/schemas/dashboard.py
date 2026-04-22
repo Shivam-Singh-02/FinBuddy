@@ -13,6 +13,8 @@ class DashboardSummaryResponse(BaseModel):
     cash_total: float
     investment_current_total: float
     investment_principal_total: float
+    vlti_current_total: float
+    vlti_principal_total: float
     net_worth: float
     gain_loss: float
     allocation: list[AllocationItemResponse]
@@ -25,6 +27,8 @@ class TrendPointResponse(BaseModel):
     cash_total: float
     investment_current_total: float
     investment_principal_total: float
+    vlti_current_total: float
+    vlti_principal_total: float
     net_worth: float
 
 

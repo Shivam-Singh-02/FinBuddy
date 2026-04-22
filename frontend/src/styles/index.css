@@ -215,7 +215,7 @@ p {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -240,6 +240,14 @@ p {
 
 .summary-card-slate {
   background: linear-gradient(135deg, rgba(61, 81, 104, 0.26), rgba(10, 18, 28, 0.88));
+}
+
+.summary-card-green {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(10, 18, 28, 0.88));
+}
+
+.summary-card-red {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(10, 18, 28, 0.88));
 }
 
 .chart-panel,
@@ -395,6 +403,14 @@ p {
 .metric-chip span {
   color: var(--text-soft);
   font-size: 0.88rem;
+}
+
+.metric-chip-gain {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.metric-chip-loss {
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .alert-banner,
