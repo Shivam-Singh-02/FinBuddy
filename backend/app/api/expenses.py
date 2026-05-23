@@ -1,5 +1,4 @@
-from datetime import date, datetime, time, timezone
-from typing import Any
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
@@ -12,29 +11,9 @@ from app.services.expense_tracker import ExpenseTrackerError, build_expense_repo
 router = APIRouter(tags=["expenses"])
 
 
-def _date_to_datetime(value: date) -> datetime:
-    return datetime.combine(value, time.min, tzinfo=timezone.utc)
-
-
 def _date_from_storage(value):
     if isinstance(value, datetime):
         return value.date()
-
-    return value
-
-
-def _mongo_safe(value: Any) -> Any:
-    if isinstance(value, datetime):
-        return value
-
-    if isinstance(value, date):
-        return _date_to_datetime(value)
-
-    if isinstance(value, list):
-        return [_mongo_safe(item) for item in value]
-
-    if isinstance(value, dict):
-        return {key: _mongo_safe(item) for key, item in value.items()}
 
     return value
 
@@ -96,7 +75,8 @@ async def import_expense_statement(
     db = get_database()
     now = datetime.now(timezone.utc)
     report.created_at = now
-    report_document = _mongo_safe(report.model_dump(mode="python"))
+    report_document = report.model_dump(mode="json")
+    report_document["created_at"] = now
     report_document["user_id"] = current_user["_id"]
     report_document.pop("id", None)
 
