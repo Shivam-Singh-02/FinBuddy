@@ -9,7 +9,9 @@ import {
   fetchAccounts,
   fetchDashboardSummary,
   fetchDashboardTrend,
+  fetchExpenseReports,
   fetchInvestments,
+  importExpenseStatement,
 } from "../api/finance";
 import type {
   Account,
@@ -19,10 +21,12 @@ import type {
   CreateInvestmentPayload,
   DashboardSummary,
   DashboardTrend,
+  ExpenseReport,
   Investment,
   Period,
 } from "../api/types";
 import { AccountSection } from "../components/AccountSection";
+import { ExpenseTrackerSection } from "../components/ExpenseTrackerSection";
 import { InvestmentSection } from "../components/InvestmentSection";
 import { SummaryCard } from "../components/SummaryCard";
 import { TrendChart } from "../components/TrendChart";
@@ -38,8 +42,10 @@ export function DashboardPage() {
   const [trend, setTrend] = useState<DashboardTrend | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
+  const [expenseReports, setExpenseReports] = useState<ExpenseReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isImportingExpenses, setIsImportingExpenses] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadDashboardData(selectedPeriod: Period) {
@@ -50,11 +56,12 @@ export function DashboardPage() {
     setError(null);
 
     try {
-      const [summaryResponse, trendResponse, accountsResponse, investmentsResponse] = await Promise.all([
+      const [summaryResponse, trendResponse, accountsResponse, investmentsResponse, expenseReportsResponse] = await Promise.all([
         fetchDashboardSummary(token),
         fetchDashboardTrend(token, selectedPeriod),
         fetchAccounts(token),
         fetchInvestments(token),
+        fetchExpenseReports(token),
       ]);
 
       startTransition(() => {
@@ -62,6 +69,7 @@ export function DashboardPage() {
         setTrend(trendResponse);
         setAccounts(accountsResponse);
         setInvestments(investmentsResponse);
+        setExpenseReports(expenseReportsResponse);
       });
     } catch (errorValue) {
       setError(errorValue instanceof ApiError ? errorValue.message : "Unable to load dashboard data.");
@@ -130,6 +138,23 @@ export function DashboardPage() {
     }
   }
 
+  async function handleImportExpenseStatement(file: File) {
+    if (!token) {
+      return;
+    }
+
+    setIsImportingExpenses(true);
+    setError(null);
+    try {
+      const report = await importExpenseStatement(token, file);
+      setExpenseReports((current) => [report, ...current.filter((item) => item.id !== report.id)]);
+    } catch (errorValue) {
+      setError(errorValue instanceof ApiError ? errorValue.message : "Unable to import expense statement.");
+    } finally {
+      setIsImportingExpenses(false);
+    }
+  }
+
   return (
     <AppShell>
       <section className="hero-card">
@@ -192,6 +217,12 @@ export function DashboardPage() {
 
           <TrendChart trend={trend} />
 
+          <ExpenseTrackerSection
+            reports={expenseReports}
+            isBusy={isImportingExpenses}
+            onImport={handleImportExpenseStatement}
+          />
+
           <section className="two-column-grid">
             <AccountSection
               accounts={accounts}
@@ -211,4 +242,3 @@ export function DashboardPage() {
     </AppShell>
   );
 }
-

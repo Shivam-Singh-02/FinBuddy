@@ -82,6 +82,36 @@ export interface DashboardTrend {
   points: TrendPoint[];
 }
 
+export interface ExpenseTransaction {
+  transaction_date: string;
+  description: string;
+  merchant?: string | null;
+  category: string;
+  amount: number;
+  currency: string;
+  account_name?: string | null;
+  confidence: number;
+}
+
+export interface ExpenseCategorySummary {
+  category: string;
+  total: number;
+  transaction_count: number;
+}
+
+export interface ExpenseReport {
+  id: string;
+  source_filename: string;
+  parser: "bedrock" | "openai" | "heuristic";
+  statement_period_start?: string | null;
+  statement_period_end?: string | null;
+  total_spend: number;
+  currency: string;
+  category_totals: ExpenseCategorySummary[];
+  transactions: ExpenseTransaction[];
+  created_at: string;
+}
+
 export interface CreateAccountPayload {
   institution_name: string;
   account_name: string;
@@ -110,4 +140,3 @@ export interface AddInvestmentEntryPayload {
   current_value: number;
   as_of_date: string;
 }
-

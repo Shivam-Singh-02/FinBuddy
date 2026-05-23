@@ -25,6 +25,12 @@ class Settings:
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
+    llm_provider: str = "bedrock"
+    bedrock_api_key: str | None = None
+    bedrock_region: str = "us-east-1"
+    bedrock_model: str = "us.amazon.nova-2-lite-v1:0"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -36,6 +42,12 @@ class Settings:
                 os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(cls.access_token_expire_minutes))
             ),
             cors_origins=_split_csv(os.getenv("CORS_ORIGINS")),
+            llm_provider=os.getenv("LLM_PROVIDER", cls.llm_provider),
+            bedrock_api_key=os.getenv("BEDROCK_API_KEY") or os.getenv("AWS_BEARER_TOKEN_BEDROCK"),
+            bedrock_region=os.getenv("BEDROCK_REGION", cls.bedrock_region),
+            bedrock_model=os.getenv("BEDROCK_MODEL", cls.bedrock_model),
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_model=os.getenv("OPENAI_MODEL", cls.openai_model),
         )
 
 

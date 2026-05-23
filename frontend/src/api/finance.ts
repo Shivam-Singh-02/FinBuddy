@@ -8,6 +8,7 @@ import type {
   CreateInvestmentPayload,
   DashboardSummary,
   DashboardTrend,
+  ExpenseReport,
   Investment,
   InvestmentEntry,
   Period,
@@ -68,3 +69,17 @@ export function fetchDashboardTrend(token: string, period: Period) {
   });
 }
 
+export function fetchExpenseReports(token: string) {
+  return apiRequest<ExpenseReport[]>("/expenses/reports", { token });
+}
+
+export function importExpenseStatement(token: string, file: File) {
+  const body = new FormData();
+  body.append("statement", file);
+
+  return apiRequest<ExpenseReport>("/expenses/import", {
+    method: "POST",
+    body,
+    token,
+  });
+}

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
+from app.api.expenses import router as expenses_router
 from app.api.finances import router as finances_router
 from app.core.config import get_settings
 from app.core.security import get_current_user
@@ -36,6 +37,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(finances_router, prefix=settings.api_prefix)
 app.include_router(dashboard_router, prefix=settings.api_prefix)
+app.include_router(expenses_router, prefix=settings.api_prefix)
 
 
 @app.get("/health")

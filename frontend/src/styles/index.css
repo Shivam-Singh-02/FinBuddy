@@ -194,6 +194,7 @@ p {
 .hero-meta select,
 .panel input,
 .panel select,
+.panel input[type="file"],
 .mini-form input,
 .auth-form input {
   width: 100%;
@@ -413,6 +414,72 @@ p {
   background: rgba(239, 68, 68, 0.12);
 }
 
+.expense-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.expense-total {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.expense-total span {
+  color: var(--text-soft);
+}
+
+.expense-total strong {
+  font-size: 1.25rem;
+}
+
+.expense-upload-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.expense-report-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.expense-summary-list,
+.expense-table-wrap {
+  min-width: 0;
+}
+
+.expense-table-wrap {
+  overflow-x: auto;
+}
+
+.expense-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.expense-table th,
+.expense-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(143, 160, 183, 0.1);
+  text-align: left;
+  vertical-align: top;
+}
+
+.expense-table th {
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.expense-table td:last-child,
+.expense-table th:last-child {
+  text-align: right;
+}
+
 .alert-banner,
 .loading-card {
   padding: 18px 20px;
@@ -502,6 +569,8 @@ p {
 
   .summary-grid,
   .two-column-grid,
+  .expense-report-grid,
+  .expense-upload-form,
   .form-grid,
   .mini-form,
   .investment-mini-form,

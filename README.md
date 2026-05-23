@@ -5,6 +5,7 @@ FinBuddy is a personal finance tracker with a React frontend, a FastAPI backend,
 - user authentication
 - bank account tracking with dated balance snapshots
 - investment tracking for mutual funds, FDs, stocks, and similar assets
+- PDF/Excel account statement imports for categorical expense reports
 - dashboard summaries and trend charts for weekly and monthly portfolio movement
 
 ## Stack
@@ -40,6 +41,7 @@ uvicorn app.main:app --reload
 ```
 
 Set `MONGODB_URI`, `MONGODB_DATABASE`, and `JWT_SECRET_KEY` in `backend/.env`.
+Set `BEDROCK_API_KEY`, `BEDROCK_REGION`, and `BEDROCK_MODEL` to enable Amazon Bedrock expense extraction; without a configured LLM key, FinBuddy uses a local heuristic parser for development.
 
 ## Frontend setup
 
@@ -65,6 +67,8 @@ Set `VITE_API_BASE_URL` in `frontend/.env` if your API is not running at `http:/
 - `POST /api/investments/{investment_id}/entries`
 - `GET /api/dashboard/summary`
 - `GET /api/dashboard/trends?period=weekly|monthly`
+- `POST /api/expenses/import`
+- `GET /api/expenses/reports`
 
 ## Next enhancements
 

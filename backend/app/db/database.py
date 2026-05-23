@@ -22,7 +22,7 @@ async def close_mongo_connection() -> None:
     global client, database
 
     if client is not None:
-        client.close()
+        await client.close()
 
     client = None
     database = None
@@ -43,3 +43,4 @@ async def initialize_database() -> None:
     await db.account_entries.create_index([("user_id", 1), ("account_id", 1), ("as_of_date", -1)])
     await db.investments.create_index([("user_id", 1), ("updated_at", -1)])
     await db.investment_entries.create_index([("user_id", 1), ("investment_id", 1), ("as_of_date", -1)])
+    await db.expense_reports.create_index([("user_id", 1), ("created_at", -1)])
