@@ -16,6 +16,7 @@ from pypdf import PdfReader
 
 from app.core.config import get_settings
 from app.schemas.expense import ExpenseCategorySummary, ExpenseImportResponse, ExpenseTransaction
+from app.services.pii_redactor import redact_statement_text
 
 
 MAX_EXTRACTED_CHARS = 120_000
@@ -134,19 +135,20 @@ async def build_expense_report(filename: str, content_type: str | None, file_byt
     settings = get_settings()
     parser = "heuristic"
     transactions: list[ExpenseTransaction]
+    llm_statement_text = redact_statement_text(statement_text)
 
     if settings.llm_provider == "bedrock" and settings.bedrock_api_key:
         try:
             if "moonshotai.kimi-k3" in settings.bedrock_model:
                 transactions = await _parse_with_bedrock_chat_completions(
-                    statement_text,
+                    llm_statement_text,
                     settings.bedrock_api_key,
                     settings.bedrock_region,
                     settings.bedrock_model,
                 )
             else:
                 transactions = await _parse_with_bedrock(
-                    statement_text,
+                    llm_statement_text,
                     settings.bedrock_api_key,
                     settings.bedrock_region,
                     settings.bedrock_model,
@@ -156,7 +158,11 @@ async def build_expense_report(filename: str, content_type: str | None, file_byt
             transactions = _parse_with_heuristics(statement_text)
     elif settings.llm_provider == "openai" and settings.openai_api_key:
         try:
-            transactions = await _parse_with_llm(statement_text, settings.openai_api_key, settings.openai_model)
+            transactions = await _parse_with_llm(
+                llm_statement_text,
+                settings.openai_api_key,
+                settings.openai_model,
+            )
             parser = "openai"
         except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError, TimeoutError):
             transactions = _parse_with_heuristics(statement_text)
@@ -237,6 +243,7 @@ def _expense_prompt(statement_text: str) -> str:
         "- Use positive amounts for spends.\n"
         "- Treat refunds, salary, interest, and investment redemptions as Income only when clearly credits.\n"
         "- Return INR unless another currency is explicit.\n"
+        "- Treat [REDACTED] placeholders as removed private data; never guess those values.\n"
         f"- Categories must be one of: {', '.join(CATEGORIES)}.\n\n"
         f"Statement text:\n{statement_text}"
     )

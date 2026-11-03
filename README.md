@@ -41,7 +41,7 @@ uvicorn app.main:app --reload
 ```
 
 Set `MONGODB_URI`, `MONGODB_DATABASE`, and `JWT_SECRET_KEY` in `backend/.env`.
-Expense statement extraction supports Amazon Bedrock and OpenAI. For Kimi K3 through Bedrock, set `LLM_PROVIDER=bedrock`, use a Bedrock API key, and set `BEDROCK_MODEL=us.moonshotai.kimi-k3` with `BEDROCK_REGION=us-east-1`. FinBuddy falls back to a local heuristic parser if the selected provider is unavailable.
+Expense statement extraction supports Amazon Bedrock and OpenAI. Before text is sent to either provider, FinBuddy locally redacts common card/account identifiers, emails and UPI IDs, phone numbers, Indian PAN/Aadhaar-like numbers, expiry/CVV/OTP values, and labeled cardholder/contact/address fields. This rule-based redaction may not detect unlabelled names or every country-specific identifier. For Kimi K3 through Bedrock, set `LLM_PROVIDER=bedrock`, use a Bedrock API key, and set `BEDROCK_MODEL=us.moonshotai.kimi-k3` with `BEDROCK_REGION=us-east-1`. FinBuddy falls back to a local heuristic parser if the selected provider is unavailable.
 
 ## Frontend setup
 
