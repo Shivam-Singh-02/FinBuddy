@@ -1,5 +1,8 @@
 export type Period = "weekly" | "monthly";
 
+export interface CreditCard { id: string; issuer: string; name: string; last_four?: string | null; credit_limit?: number | null; billing_cycle_day?: number | null; payment_due_day?: number | null; created_at: string; updated_at: string; }
+export interface CardAnalysis { period_start?: string | null; period_end?: string | null; total_spend: number; refunds: number; fees: number; transaction_count: number; category_totals: Array<{category:string;total:number}>; monthly_trend: Array<{month:string;total:number}>; top_merchants: Array<{merchant:string;total:number}>; card_totals: Array<{card_id:string;total_spend:number;transaction_count:number}>; recent_transactions: Array<{transaction_id?:string|null;transaction_date:string;description:string;merchant?:string|null;category:string;amount:number;currency:string;transaction_type:string;card_id:string}>; }
+
 export interface UserProfile {
   id: string;
   full_name: string;

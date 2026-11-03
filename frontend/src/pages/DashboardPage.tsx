@@ -1,244 +1,71 @@
 import { startTransition, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { ApiError } from "../api/client";
-import {
-  addAccountEntry,
-  addInvestmentEntry,
-  createAccount,
-  createInvestment,
-  fetchAccounts,
-  fetchDashboardSummary,
-  fetchDashboardTrend,
-  fetchExpenseReports,
-  fetchInvestments,
-  importExpenseStatement,
-} from "../api/finance";
-import type {
-  Account,
-  AddAccountEntryPayload,
-  AddInvestmentEntryPayload,
-  CreateAccountPayload,
-  CreateInvestmentPayload,
-  DashboardSummary,
-  DashboardTrend,
-  ExpenseReport,
-  Investment,
-  Period,
-} from "../api/types";
-import { AccountSection } from "../components/AccountSection";
-import { ExpenseTrackerSection } from "../components/ExpenseTrackerSection";
-import { InvestmentSection } from "../components/InvestmentSection";
+import { fetchAccounts, fetchDashboardSummary, fetchDashboardTrend, fetchInvestments } from "../api/finance";
+import type { Account, DashboardSummary, DashboardTrend, Investment, Period } from "../api/types";
 import { SummaryCard } from "../components/SummaryCard";
 import { TrendChart } from "../components/TrendChart";
 import { AppShell } from "../layouts/AppShell";
 import { useAuth } from "../contexts/AuthContext";
-import { formatCurrency } from "../utils/format";
-
+import { formatCurrency, formatDate } from "../utils/format";
 
 export function DashboardPage() {
   const { token, user } = useAuth();
-  const [period, setPeriod] = useState<Period>("weekly");
+  const [period, setPeriod] = useState<Period>("monthly");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trend, setTrend] = useState<DashboardTrend | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
-  const [expenseReports, setExpenseReports] = useState<ExpenseReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isImportingExpenses, setIsImportingExpenses] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadDashboardData(selectedPeriod: Period) {
-    if (!token) {
-      return;
-    }
-
+    if (!token) return;
     setError(null);
-
     try {
-      const [summaryResponse, trendResponse, accountsResponse, investmentsResponse, expenseReportsResponse] = await Promise.all([
-        fetchDashboardSummary(token),
-        fetchDashboardTrend(token, selectedPeriod),
-        fetchAccounts(token),
-        fetchInvestments(token),
-        fetchExpenseReports(token),
+      const [summaryResponse, trendResponse, accountsResponse, investmentsResponse] = await Promise.all([
+        fetchDashboardSummary(token), fetchDashboardTrend(token, selectedPeriod), fetchAccounts(token), fetchInvestments(token),
       ]);
-
       startTransition(() => {
-        setSummary(summaryResponse);
-        setTrend(trendResponse);
-        setAccounts(accountsResponse);
-        setInvestments(investmentsResponse);
-        setExpenseReports(expenseReportsResponse);
+        setSummary(summaryResponse); setTrend(trendResponse); setAccounts(accountsResponse); setInvestments(investmentsResponse);
       });
     } catch (errorValue) {
-      setError(errorValue instanceof ApiError ? errorValue.message : "Unable to load dashboard data.");
-    } finally {
-      setIsLoading(false);
-    }
+      setError(errorValue instanceof ApiError ? errorValue.message : "Unable to load your overview.");
+    } finally { setIsLoading(false); }
   }
 
-  useEffect(() => {
-    void loadDashboardData(period);
-  }, [period, token]);
+  useEffect(() => { void loadDashboardData(period); }, [period, token]);
 
-  async function handleCreateAccount(payload: CreateAccountPayload) {
-    if (!token) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await createAccount(token, payload);
-      await loadDashboardData(period);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleAddAccountEntry(accountId: string, payload: AddAccountEntryPayload) {
-    if (!token) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await addAccountEntry(token, accountId, payload);
-      await loadDashboardData(period);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleCreateInvestment(payload: CreateInvestmentPayload) {
-    if (!token) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await createInvestment(token, payload);
-      await loadDashboardData(period);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleAddInvestmentEntry(investmentId: string, payload: AddInvestmentEntryPayload) {
-    if (!token) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await addInvestmentEntry(token, investmentId, payload);
-      await loadDashboardData(period);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleImportExpenseStatement(file: File) {
-    if (!token) {
-      return;
-    }
-
-    setIsImportingExpenses(true);
-    setError(null);
-    try {
-      const report = await importExpenseStatement(token, file);
-      setExpenseReports((current) => [report, ...current.filter((item) => item.id !== report.id)]);
-    } catch (errorValue) {
-      setError(errorValue instanceof ApiError ? errorValue.message : "Unable to import expense statement.");
-    } finally {
-      setIsImportingExpenses(false);
-    }
-  }
+  const recentUpdates = [
+    ...accounts.flatMap((account) => account.latest_balance_date ? [{ label: account.account_name, detail: "Account balance", date: account.latest_balance_date, value: account.latest_balance ?? 0 }] : []),
+    ...investments.flatMap((investment) => investment.latest_valuation_date ? [{ label: investment.name, detail: "Investment value", date: investment.latest_valuation_date, value: investment.latest_current_value ?? 0 }] : []),
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   return (
-    <AppShell>
-      <section className="hero-card">
-        <div>
-          <span className="eyebrow">Overview</span>
-          <h2>Welcome back, {user?.full_name?.split(" ")[0]}</h2>
-          <p>
-            Keep feeding FinBuddy your latest balances and valuations. The dashboard will smooth those snapshots
-            into a cleaner story of how your money is moving.
-          </p>
-        </div>
-        <div className="hero-meta">
-          <span>Tracking mode</span>
-          <strong>{period === "weekly" ? "Week on week" : "Month on month"}</strong>
-          <select value={period} onChange={(event) => setPeriod(event.target.value as Period)}>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </div>
-      </section>
-
-      {error ? <div className="alert-banner">{error}</div> : null}
-
-      {isLoading || !summary || !trend ? (
-        <div className="loading-card">Loading your financial snapshot...</div>
-      ) : (
-        <>
-          <section className="summary-grid">
-            <SummaryCard
-              label="Net Worth"
-              value={summary.net_worth}
-              accent="teal"
-              subtitle="Bank balances plus current investment value."
-            />
-            <SummaryCard
-              label="Bank Accounts"
-              value={summary.cash_total}
-              accent="slate"
-              subtitle={`${accounts.length} accounts currently tracked.`}
-            />
-            <SummaryCard
-              label="Investment Value"
-              value={summary.investment_current_total}
-              accent="amber"
-              subtitle={`${investments.length} investment buckets in motion.`}
-            />
-            <SummaryCard
-              label="VLTI Value"
-              value={summary.vlti_current_total}
-              accent="slate"
-              subtitle="Very Long Term Investments (PF, NPS)."
-            />
-            <SummaryCard
-              label="Portfolio Gain / Loss"
-              value={summary.gain_loss}
-              accent={summary.gain_loss >= 0 ? "green" : "red"}
-              subtitle={`Against principal of ${formatCurrency(summary.investment_principal_total)}.`}
-            />
-          </section>
-
-          <TrendChart trend={trend} />
-
-          <ExpenseTrackerSection
-            reports={expenseReports}
-            isBusy={isImportingExpenses}
-            onImport={handleImportExpenseStatement}
-          />
-
-          <section className="two-column-grid">
-            <AccountSection
-              accounts={accounts}
-              isBusy={isSaving}
-              onCreateAccount={handleCreateAccount}
-              onAddEntry={handleAddAccountEntry}
-            />
-            <InvestmentSection
-              investments={investments}
-              isBusy={isSaving}
-              onCreateInvestment={handleCreateInvestment}
-              onAddEntry={handleAddInvestmentEntry}
-            />
-          </section>
-        </>
-      )}
+    <AppShell title="Overview" description={`A clear snapshot of your finances${user?.full_name ? `, ${user.full_name.split(" ")[0]}` : ""}.`}>
+      {error ? <div className="alert-banner" role="alert">{error}</div> : null}
+      {isLoading || !summary || !trend ? <div className="loading-card">Loading your financial snapshot…</div> : <>
+        <section className="net-worth-banner">
+          <div><span className="eyebrow">Total net worth</span><strong>{formatCurrency(summary.net_worth)}</strong><span className="net-worth-caption">Cash, investments, and long-term savings</span></div>
+          <div className="period-control"><label htmlFor="overview-period">Show trend</label><select id="overview-period" value={period} onChange={(event) => setPeriod(event.target.value as Period)}><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
+        </section>
+        <section className="summary-grid overview-metrics">
+          <SummaryCard label="Cash accounts" value={summary.cash_total} accent="slate" subtitle={`${accounts.length} accounts tracked`} />
+          <SummaryCard label="Investments" value={summary.investment_current_total} accent="teal" subtitle={`${investments.length} investment groups`} />
+          <SummaryCard label="Long-term savings" value={summary.vlti_current_total} accent="amber" subtitle="PF, NPS, and other long-term holdings" />
+          <SummaryCard label="Investment gain / loss" value={summary.gain_loss} accent={summary.gain_loss >= 0 ? "green" : "red"} subtitle={`Against ${formatCurrency(summary.investment_principal_total)} principal`} />
+        </section>
+        <TrendChart trend={trend} />
+        <section className="overview-lower-grid">
+          <div className="panel quick-actions-panel"><div className="panel-heading"><div><span className="eyebrow">Shortcuts</span><h3>Manage your money</h3></div></div><div className="shortcut-list">
+            <Link to="/credit-cards"><span className="shortcut-icon">▤</span><span><strong>Credit cards</strong><small>Upload statements and review spending</small></span><span aria-hidden="true">→</span></Link>
+            <Link to="/accounts"><span className="shortcut-icon">⌂</span><span><strong>Accounts</strong><small>Update balances and snapshots</small></span><span aria-hidden="true">→</span></Link>
+            <Link to="/investments"><span className="shortcut-icon">↗</span><span><strong>Investments</strong><small>Update values and track performance</small></span><span aria-hidden="true">→</span></Link>
+          </div></div>
+          <div className="panel"><div className="panel-heading"><div><span className="eyebrow">Latest snapshots</span><h3>Recent updates</h3></div></div>{recentUpdates.length ? <div className="recent-update-list">{recentUpdates.map((item) => <div className="history-row" key={`${item.label}-${item.date}`}><div><strong>{item.label}</strong><small>{item.detail} · {formatDate(item.date)}</small></div><strong>{formatCurrency(item.value)}</strong></div>)}</div> : <p>No account or investment snapshots yet.</p>}</div>
+        </section>
+      </>}
     </AppShell>
   );
 }

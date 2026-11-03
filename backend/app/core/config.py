@@ -10,7 +10,7 @@ load_dotenv()
 
 def _split_csv(value: str | None) -> list[str]:
     if not value:
-        return ["http://localhost:5173"]
+        return ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     return [item.strip() for item in value.split(",") if item.strip()]
 

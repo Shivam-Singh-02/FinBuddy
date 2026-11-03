@@ -81,6 +81,51 @@ def extract_statement_text(filename: str, content_type: str | None, file_bytes: 
     raise ExpenseTrackerError("Upload a PDF or Excel account statement.")
 
 
+def detect_credit_card_details(statement_text: str, filename: str) -> tuple[str, str | None, str, float, bool]:
+    """Infer issuer, last four digits, and a user-facing card name from statement text."""
+    lowered = statement_text.lower()
+    issuers = {
+        "SBI Card": ["sbi card", "state bank of india", "sbicard"],
+        "HDFC Bank": ["hdfc bank", "hdfc credit card"],
+        "ICICI Bank": ["icici bank", "icici credit card"],
+        "Axis Bank": ["axis bank", "axis credit card"],
+        "Kotak Mahindra Bank": ["kotak mahindra", "kotak credit card"],
+        "American Express": ["american express", "amex"],
+        "IndusInd Bank": ["indusind bank", "indusind credit card"],
+        "IDFC FIRST Bank": ["idfc first", "idfc bank"],
+        "AU Small Finance Bank": ["au small finance", "au bank credit card"],
+        "RBL Bank": ["rbl bank", "rbl credit card"],
+        "Yes Bank": ["yes bank", "yes credit card"],
+    }
+    issuer = next((name for name, markers in issuers.items() if any(marker in lowered for marker in markers)), "Imported Card")
+    # Prefer digits explicitly associated with a card number or masked card suffix.
+    patterns = [
+        r"(?:card\s*(?:no\.?|number)|primary\s+card|credit\s+card)[^\n\r]{0,30}?([xX*\d][xX*\d -]{5,22}\d{4})\b",
+        r"(?:ending\s+(?:in|with)|last\s+four\s+(?:digits\s+)?(?:are|is)?)[^\n\r]{0,12}?([0-9]{4})\b",
+        r"\b(?:\d[ -]?){12,15}(\d{4})\b",
+    ]
+    last_four = None
+    for pattern in patterns:
+        match = re.search(pattern, statement_text, flags=re.IGNORECASE)
+        if match:
+            digits = re.sub(r"\D", "", match.group(1))
+            if len(digits) >= 4:
+                last_four = digits[-4:]
+            break
+    name = f"{issuer} •••• {last_four}" if last_four else issuer
+    if issuer == "Imported Card":
+        stem = re.sub(r"\.[^.]+$", "", filename).strip()
+        if stem:
+            name = stem[:120]
+    confidence = 0.35
+    if issuer != "Imported Card":
+        confidence += 0.35
+    if last_four:
+        confidence += 0.3
+    confidence = min(confidence, 1.0)
+    return issuer, last_four, name, confidence, confidence < 0.8
+
+
 async def build_expense_report(filename: str, content_type: str | None, file_bytes: bytes) -> ExpenseImportResponse:
     statement_text = extract_statement_text(filename, content_type, file_bytes)
     if not statement_text.strip():

@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
+import { BrandLogo } from "../components/BrandLogo";
 
 
 export function RegisterPage() {
@@ -36,7 +37,7 @@ export function RegisterPage() {
   return (
     <div className="auth-shell">
       <section className="auth-hero">
-        <span className="brand-kicker">FinBuddy</span>
+        <BrandLogo size="large" />
         <h1>Build a clearer net worth habit.</h1>
         <p>
           Start by storing account and investment snapshots, then let the dashboard tell the story over time.

@@ -44,3 +44,6 @@ async def initialize_database() -> None:
     await db.investments.create_index([("user_id", 1), ("updated_at", -1)])
     await db.investment_entries.create_index([("user_id", 1), ("investment_id", 1), ("as_of_date", -1)])
     await db.expense_reports.create_index([("user_id", 1), ("created_at", -1)])
+    await db.credit_cards.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.credit_card_statements.create_index([("user_id", 1), ("card_id", 1), ("created_at", -1)])
+    await db.credit_card_statements.create_index([("user_id", 1), ("card_id", 1), ("file_hash", 1)], unique=True)

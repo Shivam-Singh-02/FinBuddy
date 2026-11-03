@@ -12,7 +12,17 @@ import type {
   Investment,
   InvestmentEntry,
   Period,
+  CreditCard,
+  CardAnalysis,
 } from "./types";
+
+export function fetchCreditCards(token: string) { return apiRequest<CreditCard[]>("/credit-cards", { token }); }
+export function createCreditCard(token: string, payload: {issuer:string;name:string;last_four?:string;credit_limit?:number}) { return apiRequest<CreditCard>("/credit-cards", {method:"POST",body:JSON.stringify(payload),token}); }
+export function fetchCardAnalysis(token: string, cardId?: string) { return apiRequest<CardAnalysis>(cardId ? `/credit-cards/${cardId}/analysis` : "/credit-cards/analysis", {token}); }
+export function importCardStatement(token: string, cardId: string, file: File) { const body = new FormData(); body.append("statement", file); return apiRequest(`/credit-cards/${cardId}/statements/import`, {method:"POST",body,token}); }
+export function importAndDetectCardStatement(token: string, file: File) { const body = new FormData(); body.append("statement", file); return apiRequest<{card:CreditCard;card_created:boolean;statement:{id:string};card_detection?:{confidence:number;needs_review:boolean;reason?:string|null}}>("/credit-cards/statements/import", {method:"POST",body,token}); }
+export function updateCreditCard(token: string, cardId: string, payload: Partial<Pick<CreditCard,"issuer"|"name"|"last_four"|"credit_limit"|"billing_cycle_day"|"payment_due_day">>) { return apiRequest<CreditCard>(`/credit-cards/${cardId}`, {method:"PATCH",body:JSON.stringify(payload),token}); }
+export function updateCardTransactionCategory(token: string, cardId: string, transactionId: string, category: string) { return apiRequest(`/credit-cards/${cardId}/transactions/${transactionId}`, {method:"PATCH",body:JSON.stringify({category}),token}); }
 
 export function fetchAccounts(token: string) {
   return apiRequest<Account[]>("/accounts", { token });

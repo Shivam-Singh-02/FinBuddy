@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
+import { BrandLogo } from "../components/BrandLogo";
 
 
 export function LoginPage() {
@@ -35,7 +36,7 @@ export function LoginPage() {
   return (
     <div className="auth-shell">
       <section className="auth-hero">
-        <span className="brand-kicker">FinBuddy</span>
+        <BrandLogo size="large" />
         <h1>See the full picture of your money.</h1>
         <p>
           Track balances, investments, and your week-on-week movement without losing the historical trail.
