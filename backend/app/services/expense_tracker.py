@@ -16,6 +16,7 @@ from pypdf import PdfReader
 
 from app.core.config import get_settings
 from app.schemas.expense import ExpenseCategorySummary, ExpenseImportResponse, ExpenseTransaction
+from app.services.pii_redactor import redact_statement_text
 
 
 MAX_EXTRACTED_CHARS = 120_000
@@ -81,6 +82,60 @@ def extract_statement_text(filename: str, content_type: str | None, file_bytes: 
     raise ExpenseTrackerError("Upload a PDF or Excel account statement.")
 
 
+_CARD_NUMBER_LABELS = (
+    re.compile(r"(?i)\bcredit\s+card\s*(?:no\.?|number|#)\s*[:#-]?"),
+    re.compile(r"(?i)\bprimary\s+card\s*(?:no\.?|number|#)\s*[:#-]?"),
+    re.compile(r"(?i)\bcard\s*(?:no\.?|number|#)\s*[:#-]?"),
+)
+_CARD_NUMBER_VALUE = re.compile(
+    r"(?i)(?:"
+    r"(?:[x*•]{4,}[ -]*){1,4}\d{4}(?!\d)|"
+    r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)"
+    r")"
+)
+_CARD_SUFFIX_LABEL = re.compile(
+    r"(?i)\b(?:credit\s+card|primary\s+card|card)\b[^\r\n]{0,60}?"
+    r"\b(?:ending\s+(?:in|with)|last\s+(?:four|4)\s+(?:digits?\s*)?(?:are|is)?)"
+    r"\s*[:#-]?\s*(\d{4})\b"
+)
+_OTHER_ACCOUNT_LABEL = re.compile(r"(?i)\b(?:alternate\s+)?account\s*(?:number|no\.?|#)\b")
+
+
+def _extract_card_last_four(statement_text: str) -> str | None:
+    """Prefer an explicitly labeled card number; ignore alternate account numbers."""
+    for label_pattern in _CARD_NUMBER_LABELS:
+        for label_match in label_pattern.finditer(statement_text):
+            line_end = statement_text.find("\n", label_match.end())
+            if line_end < 0:
+                line_end = len(statement_text)
+            tail = statement_text[label_match.end():line_end]
+            other_account = _OTHER_ACCOUNT_LABEL.search(tail)
+            if other_account:
+                tail = tail[:other_account.start()]
+            value_match = _CARD_NUMBER_VALUE.search(tail)
+            if value_match:
+                digits = re.sub(r"\D", "", value_match.group())
+                if len(digits) >= 4:
+                    return digits[-4:]
+
+    suffix_match = _CARD_SUFFIX_LABEL.search(statement_text)
+    if suffix_match:
+        return suffix_match.group(1)
+
+    for value_match in _CARD_NUMBER_VALUE.finditer(statement_text):
+        line_start = statement_text.rfind("\n", 0, value_match.start()) + 1
+        line_end = statement_text.find("\n", value_match.end())
+        if line_end < 0:
+            line_end = len(statement_text)
+        line = statement_text[line_start:line_end]
+        if _OTHER_ACCOUNT_LABEL.search(line):
+            continue
+        digits = re.sub(r"\D", "", value_match.group())
+        if len(digits) >= 4:
+            return digits[-4:]
+    return None
+
+
 def detect_credit_card_details(statement_text: str, filename: str) -> tuple[str, str | None, str, float, bool]:
     """Infer issuer, last four digits, and a user-facing card name from statement text."""
     lowered = statement_text.lower()
@@ -98,20 +153,7 @@ def detect_credit_card_details(statement_text: str, filename: str) -> tuple[str,
         "Yes Bank": ["yes bank", "yes credit card"],
     }
     issuer = next((name for name, markers in issuers.items() if any(marker in lowered for marker in markers)), "Imported Card")
-    # Prefer digits explicitly associated with a card number or masked card suffix.
-    patterns = [
-        r"(?:card\s*(?:no\.?|number)|primary\s+card|credit\s+card)[^\n\r]{0,30}?([xX*\d][xX*\d -]{5,22}\d{4})\b",
-        r"(?:ending\s+(?:in|with)|last\s+four\s+(?:digits\s+)?(?:are|is)?)[^\n\r]{0,12}?([0-9]{4})\b",
-        r"\b(?:\d[ -]?){12,15}(\d{4})\b",
-    ]
-    last_four = None
-    for pattern in patterns:
-        match = re.search(pattern, statement_text, flags=re.IGNORECASE)
-        if match:
-            digits = re.sub(r"\D", "", match.group(1))
-            if len(digits) >= 4:
-                last_four = digits[-4:]
-            break
+    last_four = _extract_card_last_four(statement_text)
     name = f"{issuer} •••• {last_four}" if last_four else issuer
     if issuer == "Imported Card":
         stem = re.sub(r"\.[^.]+$", "", filename).strip()
@@ -134,23 +176,36 @@ async def build_expense_report(filename: str, content_type: str | None, file_byt
     settings = get_settings()
     parser = "heuristic"
     transactions: list[ExpenseTransaction]
+    llm_statement_text = redact_statement_text(statement_text)
 
     if settings.llm_provider == "bedrock" and settings.bedrock_api_key:
         try:
-            transactions = await _parse_with_bedrock(
-                statement_text,
-                settings.bedrock_api_key,
-                settings.bedrock_region,
-                settings.bedrock_model,
-            )
+            if "moonshotai.kimi-k3" in settings.bedrock_model:
+                transactions = await _parse_with_bedrock_chat_completions(
+                    llm_statement_text,
+                    settings.bedrock_api_key,
+                    settings.bedrock_region,
+                    settings.bedrock_model,
+                )
+            else:
+                transactions = await _parse_with_bedrock(
+                    llm_statement_text,
+                    settings.bedrock_api_key,
+                    settings.bedrock_region,
+                    settings.bedrock_model,
+                )
             parser = "bedrock"
-        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError):
+        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError, TimeoutError):
             transactions = _parse_with_heuristics(statement_text)
-    elif settings.openai_api_key:
+    elif settings.llm_provider == "openai" and settings.openai_api_key:
         try:
-            transactions = await _parse_with_llm(statement_text, settings.openai_api_key, settings.openai_model)
+            transactions = await _parse_with_llm(
+                llm_statement_text,
+                settings.openai_api_key,
+                settings.openai_model,
+            )
             parser = "openai"
-        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError):
+        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError, TimeoutError):
             transactions = _parse_with_heuristics(statement_text)
     else:
         transactions = _parse_with_heuristics(statement_text)
@@ -199,6 +254,23 @@ async def _parse_with_bedrock(
     return [ExpenseTransaction.model_validate(item) for item in parsed.get("transactions", [])]
 
 
+async def _parse_with_bedrock_chat_completions(
+    statement_text: str,
+    api_key: str,
+    region: str,
+    model: str,
+) -> list[ExpenseTransaction]:
+    raw_response = await asyncio.to_thread(
+        _call_bedrock_chat_completions_api,
+        statement_text,
+        api_key,
+        region,
+        model,
+    )
+    parsed = _extract_chat_completion_json(raw_response)
+    return [ExpenseTransaction.model_validate(item) for item in parsed.get("transactions", [])]
+
+
 def _expense_prompt(statement_text: str) -> str:
     return (
         "Parse this account statement into normalized expense transactions.\n"
@@ -212,6 +284,7 @@ def _expense_prompt(statement_text: str) -> str:
         "- Use positive amounts for spends.\n"
         "- Treat refunds, salary, interest, and investment redemptions as Income only when clearly credits.\n"
         "- Return INR unless another currency is explicit.\n"
+        "- Treat [REDACTED] placeholders as removed private data; never guess those values.\n"
         f"- Categories must be one of: {', '.join(CATEGORIES)}.\n\n"
         f"Statement text:\n{statement_text}"
     )
@@ -244,6 +317,73 @@ def _call_bedrock_converse_api(statement_text: str, api_key: str, region: str, m
 
     with request.urlopen(api_request, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _call_bedrock_chat_completions_api(statement_text: str, api_key: str, region: str, model: str) -> dict:
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": _expense_prompt(statement_text)}],
+        "reasoning_effort": "low",
+        "max_completion_tokens": 12000,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "expense_transactions",
+                "strict": True,
+                "schema": _expense_transactions_schema(),
+            },
+        },
+    }
+
+    api_request = request.Request(
+        f"https://bedrock-runtime.{region}.amazonaws.com/openai/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    with request.urlopen(api_request, timeout=120) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _expense_transactions_schema() -> dict:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "transactions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "transaction_date": {"type": "string"},
+                        "description": {"type": "string"},
+                        "merchant": {"type": ["string", "null"]},
+                        "category": {"type": "string", "enum": CATEGORIES},
+                        "amount": {"type": "number"},
+                        "currency": {"type": "string"},
+                        "account_name": {"type": ["string", "null"]},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": [
+                        "transaction_date",
+                        "description",
+                        "merchant",
+                        "category",
+                        "amount",
+                        "currency",
+                        "account_name",
+                        "confidence",
+                    ],
+                },
+            }
+        },
+        "required": ["transactions"],
+    }
 
 
 def _call_openai_responses_api(statement_text: str, api_key: str, model: str) -> dict:
@@ -324,6 +464,18 @@ def _extract_response_json(response_body: dict) -> dict:
                 return json.loads(content.get("text", "{}"))
 
     raise ExpenseTrackerError("The LLM did not return structured expense data.")
+
+
+def _extract_chat_completion_json(response_body: dict) -> dict:
+    choices = response_body.get("choices", [])
+    if not choices:
+        raise ExpenseTrackerError("Bedrock did not return expense data.")
+
+    content = choices[0].get("message", {}).get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ExpenseTrackerError("Bedrock did not return structured expense data.")
+
+    return json.loads(_extract_json_object(content))
 
 
 def _extract_bedrock_json(response_body: dict) -> dict:

@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from hashlib import sha256
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 
 from app.core.security import get_current_user
 from app.db.database import get_database
@@ -109,6 +109,15 @@ async def update_card(card_id: str, payload: CreditCardUpdate, user=Depends(get_
     await get_database().credit_cards.update_one({"_id": card["_id"], "user_id": user["_id"]}, {"$set": changes})
     card.update(changes)
     return _card(card)
+
+
+@router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_card(card_id: str, user=Depends(get_current_user)) -> Response:
+    card = await _owned_card(card_id, user["_id"])
+    db = get_database()
+    await db.credit_card_statements.delete_many({"user_id": user["_id"], "card_id": card["_id"]})
+    await db.credit_cards.delete_one({"_id": card["_id"], "user_id": user["_id"]})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{card_id}/statements", response_model=list[CreditCardStatementResponse])

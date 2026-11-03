@@ -28,7 +28,7 @@ class Settings:
     llm_provider: str = "bedrock"
     bedrock_api_key: str | None = None
     bedrock_region: str = "us-east-1"
-    bedrock_model: str = "us.amazon.nova-2-lite-v1:0"
+    bedrock_model: str = "us.moonshotai.kimi-k3"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
 
