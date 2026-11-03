@@ -82,14 +82,27 @@ def extract_statement_text(filename: str, content_type: str | None, file_bytes: 
     raise ExpenseTrackerError("Upload a PDF or Excel account statement.")
 
 
+def extract_card_detection_text(filename: str, content_type: str | None, file_bytes: bytes) -> str:
+    """Combine visual and reading-order PDF text for reliable card metadata detection."""
+    lowered_name = filename.lower()
+    if content_type == "application/pdf" or lowered_name.endswith(".pdf"):
+        layout_text = _extract_pdf_text(file_bytes, preserve_layout=True)
+        plain_text = _extract_pdf_text(file_bytes)
+        return f"{layout_text}\n{plain_text}"[: MAX_EXTRACTED_CHARS * 2]
+    return extract_statement_text(filename, content_type, file_bytes)
+
+
 _CARD_NUMBER_LABELS = (
-    re.compile(r"(?i)\bcredit\s+card\s*(?:no\.?|number|#)\s*[:#-]?"),
-    re.compile(r"(?i)\bprimary\s+card\s*(?:no\.?|number|#)\s*[:#-]?"),
-    re.compile(r"(?i)\bcard\s*(?:no\.?|number|#)\s*[:#-]?"),
+    re.compile(r"(?i)\bcredit[ \t]+card[ \t]*(?:no\.?|number|#)[ \t]*[:#-]?[ \t]*"),
+    re.compile(r"(?i)\bprimary[ \t]+card[ \t]*(?:no\.?|number|#)[ \t]*[:#-]?[ \t]*"),
+    re.compile(r"(?i)\bcard[ \t]*(?:no\.?|number|#)[ \t]*[:#-]?[ \t]*"),
+)
+_MASKED_CARD_NUMBER_VALUE = re.compile(
+    r"(?i)(?<![A-Z0-9])(?:\d{4,6}[ -]?)?(?:[x*•]{2,}[ -]*){1,4}\d{4}(?!\d)"
 )
 _CARD_NUMBER_VALUE = re.compile(
     r"(?i)(?:"
-    r"(?:[x*•]{4,}[ -]*){1,4}\d{4}(?!\d)|"
+    r"(?<![A-Z0-9])(?:\d{4,6}[ -]?)?(?:[x*•]{2,}[ -]*){1,4}\d{4}(?!\d)|"
     r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)"
     r")"
 )
@@ -122,7 +135,9 @@ def _extract_card_last_four(statement_text: str) -> str | None:
     if suffix_match:
         return suffix_match.group(1)
 
-    for value_match in _CARD_NUMBER_VALUE.finditer(statement_text):
+    # In unlabeled contexts, only accept masked PANs. Generic long numbers can
+    # be invoice, reference, or account IDs and otherwise produce false cards.
+    for value_match in _MASKED_CARD_NUMBER_VALUE.finditer(statement_text):
         line_start = statement_text.rfind("\n", 0, value_match.start()) + 1
         line_end = statement_text.find("\n", value_match.end())
         if line_end < 0:
@@ -217,9 +232,9 @@ async def build_expense_report(filename: str, content_type: str | None, file_byt
     return _build_response(filename, parser, transactions)
 
 
-def _extract_pdf_text(file_bytes: bytes) -> str:
+def _extract_pdf_text(file_bytes: bytes, *, preserve_layout: bool = False) -> str:
     reader = PdfReader(BytesIO(file_bytes))
-    pages = [page.extract_text() or "" for page in reader.pages]
+    pages = [page.extract_text(extraction_mode="layout" if preserve_layout else "plain") or "" for page in reader.pages]
     return "\n".join(pages)[:MAX_EXTRACTED_CHARS]
 
 

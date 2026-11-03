@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from app.core.security import get_current_user
 from app.db.database import get_database
 from app.schemas.credit_card import CreditCardAnalysisResponse, CreditCardCategoryUpdate, CreditCardCreate, CreditCardResponse, CreditCardStatementResponse, CreditCardUpdate
-from app.services.expense_tracker import ExpenseTrackerError, build_expense_report, detect_credit_card_details, extract_statement_text
+from app.services.expense_tracker import ExpenseTrackerError, build_expense_report, detect_credit_card_details, extract_card_detection_text, extract_statement_text
 
 router = APIRouter(prefix="/credit-cards", tags=["credit-cards"])
 
@@ -57,7 +57,7 @@ async def import_statement_and_detect_card(statement: UploadFile = File(...), us
         raise HTTPException(400, "Upload a non-empty statement file.")
     filename = statement.filename or "statement"
     try:
-        statement_text = extract_statement_text(filename, statement.content_type, data)
+        statement_text = extract_card_detection_text(filename, statement.content_type, data)
         issuer, last_four, card_name, detection_confidence, needs_review = detect_credit_card_details(statement_text, filename)
         report = await build_expense_report(filename, statement.content_type, data)
     except ExpenseTrackerError as error:
