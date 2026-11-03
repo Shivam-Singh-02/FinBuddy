@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { ApiError } from "../api/client";
-import { createCreditCard, fetchCardAnalysis, fetchCreditCards, importAndDetectCardStatement, importCardStatement, updateCardTransactionCategory, updateCreditCard } from "../api/finance";
+import { createCreditCard, deleteCreditCard, fetchCardAnalysis, fetchCreditCards, importAndDetectCardStatement, importCardStatement, updateCardTransactionCategory, updateCreditCard } from "../api/finance";
 import type { CardAnalysis, CreditCard } from "../api/types";
 import { useAuth } from "../contexts/AuthContext";
 import { AppShell } from "../layouts/AppShell";
@@ -15,6 +15,7 @@ type ImportNotice = { card: CreditCard; needsReview: boolean; reason?: string | 
 export function CreditCardsPage() {
   const { token } = useAuth();
   const { cardId } = useParams();
+  const navigate = useNavigate();
   const overall = useLocation().pathname === "/credit-cards/analysis";
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [analysis, setAnalysis] = useState<CardAnalysis | null>(null);
@@ -91,6 +92,19 @@ export function CreditCardsPage() {
     finally { setBusy(false); }
   }
 
+  async function handleDeleteCard() {
+    if (!token || !cardId || !selectedCard) return;
+    const confirmed = window.confirm(`Remove ${selectedCard.name}? This will permanently delete this card and all its statements and transactions.`);
+    if (!confirmed) return;
+    setBusy(true); setError("");
+    try {
+      await deleteCreditCard(token, cardId);
+      navigate("/credit-cards", { replace: true });
+    } catch (value) {
+      setError(value instanceof ApiError ? value.message : "Unable to remove this card.");
+    } finally { setBusy(false); }
+  }
+
   async function changeCategory(transactionId: string | undefined, transactionCardId: string, category: string) {
     if (!token || !transactionId) return;
     try { await updateCardTransactionCategory(token, transactionCardId, transactionId, category); await reload(); }
@@ -124,7 +138,7 @@ export function CreditCardsPage() {
         </section>
       </> : <AnalysisView analysis={analysis} cards={cards} onCategoryChange={changeCategory} />}
     </> : <>
-      <div className="card-detail-toolbar"><Link to="/credit-cards" className="back-link">← All cards</Link><form className="inline-upload-form" onSubmit={(event) => void handleSelectedImport(event)}><label className="compact-file-picker">{file?.name ?? "Choose statement"}<input type="file" accept=".pdf,.xlsx,.xls" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label><button className="secondary-button" disabled={busy || !file}>{busy ? "Importing…" : "Import to this card"}</button></form></div>
+      <div className="card-detail-toolbar"><div className="card-toolbar-actions"><Link to="/credit-cards" className="back-link">← All cards</Link>{selectedCard ? <button className="danger-button" type="button" onClick={() => void handleDeleteCard()} disabled={busy}>Remove card</button> : null}</div><form className="inline-upload-form" onSubmit={(event) => void handleSelectedImport(event)}><label className="compact-file-picker">{file?.name ?? "Choose statement"}<input type="file" accept=".pdf,.xlsx,.xls" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label><button className="secondary-button" disabled={busy || !file}>{busy ? "Importing…" : "Import to this card"}</button></form></div>
       <AnalysisView analysis={analysis} cards={cards} selectedCardId={cardId} onCategoryChange={changeCategory} />
     </>}
   </AppShell>;

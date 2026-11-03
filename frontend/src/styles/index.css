@@ -649,6 +649,9 @@ body { background: #f4f7f7; }
 .primary-button:hover { background: #107363; }
 .secondary-button { border: 1px solid #dce6e4; background: #fff; color: #285b54; }
 .secondary-button:hover { background: #f1f7f5; }
+.danger-button { border: 1px solid #f0d3d1; border-radius: 10px; padding: 11px 15px; color: #a34e48; background: #fff; font-size: .88rem; font-weight: 700; cursor: pointer; }
+.danger-button:hover { background: #fff5f4; }
+.danger-button:disabled { cursor: wait; opacity: .6; }
 .panel input, .panel select, .panel input[type="file"], .mini-form input, .auth-form input, .hero-meta select { border: 1px solid #dce4e5; background: #fff; color: #203540; border-radius: 9px; padding: 11px 12px; }
 .panel input:focus, .panel select:focus, .mini-form input:focus, .auth-form input:focus { border-color: #168b79; box-shadow: 0 0 0 3px rgba(22, 139, 121, .12); }
 .asset-card { padding: 20px; }
@@ -792,6 +795,7 @@ body { background: #f4f7f7; }
 .text-link, .back-link { color: #147767; font-weight: 700; font-size: .84rem; text-decoration: none; }
 .text-link:hover, .back-link:hover { text-decoration: underline; }
 .card-detail-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 2px; }
+.card-toolbar-actions { display: flex; align-items: center; gap: 16px; }
 .inline-upload-form { display: flex; align-items: center; gap: 8px; }
 .compact-file-picker { max-width: 230px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid #dce4e5; border-radius: 9px; padding: 9px 12px; color: #5d6d74; font-size: .8rem; cursor: pointer; }
 .analysis-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
