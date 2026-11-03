@@ -22,7 +22,7 @@ _LABELED_IDENTIFIERS = re.compile(
     r"member\s*(?:id|number|no\.?|#)|reference\s*(?:id|number|no\.?|#)|"
     r"transaction\s*(?:id|reference|ref\.?|no\.?|#)|rrn|utr|ifsc|iban|swift|"
     r"routing\s*(?:number|no\.?|#)|upi\s*id|passport\s*(?:number|no\.?|#)|"
-    r"aadhaar\s*(?:number|no\.?|#)|pan\s*(?:number|no\.?|#))\s*[:#-]\s*)"
+    r"aadhaar\s*(?:number|no\.?|#)|pan\s*(?:number|no\.?|#))\s*[:#-]\s*"
     r"([^\r\n\t,;]{3,})"
 )
 
