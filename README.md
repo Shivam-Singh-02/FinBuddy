@@ -41,7 +41,7 @@ uvicorn app.main:app --reload
 ```
 
 Set `MONGODB_URI`, `MONGODB_DATABASE`, and `JWT_SECRET_KEY` in `backend/.env`.
-Set `BEDROCK_API_KEY`, `BEDROCK_REGION`, and `BEDROCK_MODEL` to enable Amazon Bedrock expense extraction; without a configured LLM key, FinBuddy uses a local heuristic parser for development.
+Expense statement extraction supports Amazon Bedrock and OpenAI. For Kimi K3 through Bedrock, set `LLM_PROVIDER=bedrock`, use a Bedrock API key, and set `BEDROCK_MODEL=us.moonshotai.kimi-k3` with `BEDROCK_REGION=us-east-1`. FinBuddy falls back to a local heuristic parser if the selected provider is unavailable.
 
 ## Frontend setup
 

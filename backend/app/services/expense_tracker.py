@@ -137,20 +137,28 @@ async def build_expense_report(filename: str, content_type: str | None, file_byt
 
     if settings.llm_provider == "bedrock" and settings.bedrock_api_key:
         try:
-            transactions = await _parse_with_bedrock(
-                statement_text,
-                settings.bedrock_api_key,
-                settings.bedrock_region,
-                settings.bedrock_model,
-            )
+            if "moonshotai.kimi-k3" in settings.bedrock_model:
+                transactions = await _parse_with_bedrock_chat_completions(
+                    statement_text,
+                    settings.bedrock_api_key,
+                    settings.bedrock_region,
+                    settings.bedrock_model,
+                )
+            else:
+                transactions = await _parse_with_bedrock(
+                    statement_text,
+                    settings.bedrock_api_key,
+                    settings.bedrock_region,
+                    settings.bedrock_model,
+                )
             parser = "bedrock"
-        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError):
+        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError, TimeoutError):
             transactions = _parse_with_heuristics(statement_text)
-    elif settings.openai_api_key:
+    elif settings.llm_provider == "openai" and settings.openai_api_key:
         try:
             transactions = await _parse_with_llm(statement_text, settings.openai_api_key, settings.openai_model)
             parser = "openai"
-        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError):
+        except (ExpenseTrackerError, ValidationError, json.JSONDecodeError, URLError, TimeoutError):
             transactions = _parse_with_heuristics(statement_text)
     else:
         transactions = _parse_with_heuristics(statement_text)
@@ -199,6 +207,23 @@ async def _parse_with_bedrock(
     return [ExpenseTransaction.model_validate(item) for item in parsed.get("transactions", [])]
 
 
+async def _parse_with_bedrock_chat_completions(
+    statement_text: str,
+    api_key: str,
+    region: str,
+    model: str,
+) -> list[ExpenseTransaction]:
+    raw_response = await asyncio.to_thread(
+        _call_bedrock_chat_completions_api,
+        statement_text,
+        api_key,
+        region,
+        model,
+    )
+    parsed = _extract_chat_completion_json(raw_response)
+    return [ExpenseTransaction.model_validate(item) for item in parsed.get("transactions", [])]
+
+
 def _expense_prompt(statement_text: str) -> str:
     return (
         "Parse this account statement into normalized expense transactions.\n"
@@ -244,6 +269,73 @@ def _call_bedrock_converse_api(statement_text: str, api_key: str, region: str, m
 
     with request.urlopen(api_request, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _call_bedrock_chat_completions_api(statement_text: str, api_key: str, region: str, model: str) -> dict:
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": _expense_prompt(statement_text)}],
+        "reasoning_effort": "low",
+        "max_completion_tokens": 12000,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "expense_transactions",
+                "strict": True,
+                "schema": _expense_transactions_schema(),
+            },
+        },
+    }
+
+    api_request = request.Request(
+        f"https://bedrock-runtime.{region}.amazonaws.com/openai/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    with request.urlopen(api_request, timeout=120) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _expense_transactions_schema() -> dict:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "transactions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "transaction_date": {"type": "string"},
+                        "description": {"type": "string"},
+                        "merchant": {"type": ["string", "null"]},
+                        "category": {"type": "string", "enum": CATEGORIES},
+                        "amount": {"type": "number"},
+                        "currency": {"type": "string"},
+                        "account_name": {"type": ["string", "null"]},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": [
+                        "transaction_date",
+                        "description",
+                        "merchant",
+                        "category",
+                        "amount",
+                        "currency",
+                        "account_name",
+                        "confidence",
+                    ],
+                },
+            }
+        },
+        "required": ["transactions"],
+    }
 
 
 def _call_openai_responses_api(statement_text: str, api_key: str, model: str) -> dict:
@@ -324,6 +416,18 @@ def _extract_response_json(response_body: dict) -> dict:
                 return json.loads(content.get("text", "{}"))
 
     raise ExpenseTrackerError("The LLM did not return structured expense data.")
+
+
+def _extract_chat_completion_json(response_body: dict) -> dict:
+    choices = response_body.get("choices", [])
+    if not choices:
+        raise ExpenseTrackerError("Bedrock did not return expense data.")
+
+    content = choices[0].get("message", {}).get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ExpenseTrackerError("Bedrock did not return structured expense data.")
+
+    return json.loads(_extract_json_object(content))
 
 
 def _extract_bedrock_json(response_body: dict) -> dict:
